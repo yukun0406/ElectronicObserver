@@ -23,6 +23,19 @@ namespace ElectronicObserver.Data.Battle.Detail {
 				if ( bm.Compass.EventID == 5 )
 					sb.Append( " (ボス)" );
 				sb.AppendLine();
+
+				var mapinfo = bm.Compass.MapInfo;
+				if ( !mapinfo.IsCleared ) {
+					if ( mapinfo.RequiredDefeatedCount != -1 ) {
+						sb.AppendFormat( "撃破: {0} / {1} 回", mapinfo.CurrentDefeatedCount, mapinfo.RequiredDefeatedCount )
+							.AppendLine();
+					} else if ( mapinfo.MapHPMax > 0 ) {
+						int current = bm.Compass.MapHPCurrent > 0 ? bm.Compass.MapHPCurrent : mapinfo.MapHPCurrent;
+						int max = bm.Compass.MapHPMax > 0 ? bm.Compass.MapHPMax : mapinfo.MapHPMax;
+						sb.AppendFormat( "{0}: {1} / {2}", mapinfo.GaugeType == 3 ? "TP" : "HP", current, max )
+							.AppendLine();
+					}
+				}
 			}
 			if ( bm.Result != null ) {
 				sb.AppendLine( bm.Result.EnemyFleetName );
@@ -69,6 +82,26 @@ namespace ElectronicObserver.Data.Battle.Detail {
 
 				} else if ( phase is PhaseBaseAirAttack ) {
 					var p = phase as PhaseBaseAirAttack;
+
+					foreach ( var a in p.AirAttackUnits ) {
+						sb.AppendFormat( "〈第{0}波〉\r\n", a.AirAttackIndex + 1 );
+
+						sb.AppendLine( "味方基地航空隊 参加中隊:" );
+						sb.Append( "　" ).AppendLine( string.Join( ", ", a.Squadrons.Where( sq => sq.EquipmentInstance != null ).Select( sq => sq.ToString() ) ) );
+
+						GetBattleDetailPhaseAirBattle( sb, a );
+						sb.Append( a.GetBattleDetail() );
+					}
+
+
+				} else if ( phase is PhaseJetAirBattle ) {
+					var p = phase as PhaseJetAirBattle;
+
+					GetBattleDetailPhaseAirBattle( sb, p );
+
+
+				} else if ( phase is PhaseJetBaseAirAttack ) {
+					var p = phase as PhaseJetBaseAirAttack;
 
 					foreach ( var a in p.AirAttackUnits ) {
 						sb.AppendFormat( "〈第{0}波〉\r\n", a.AirAttackIndex + 1 );
@@ -195,10 +228,20 @@ namespace ElectronicObserver.Data.Battle.Detail {
 					sb.Append( " / 敵軍索敵: " ).AppendLine( Constants.GetSearchingResult( p.SearchingEnemy ) );
 
 					sb.AppendLine();
+
+
+				} else if ( phase is PhaseSupport ) {
+					var p = phase as PhaseSupport;
+
+					if ( p.IsAvailable ) {
+						sb.AppendLine( "〈支援艦隊〉" );
+						OutputSupportData( sb, p.SupportFleet );
+						sb.AppendLine();
+					}
 				}
 
 
-				if ( !( phase is PhaseBaseAirAttack ) )		// 通常出力と重複するため
+				if ( !( phase is PhaseBaseAirAttack || phase is PhaseJetBaseAirAttack ) )		// 通常出力と重複するため
 					sb.Append( phase.GetBattleDetail() );
 
 				if ( sb.Length > 0 ) {
@@ -302,7 +345,7 @@ namespace ElectronicObserver.Data.Battle.Detail {
 			}
 		}
 
-		private static void GetBattleDetailPhaseAirBattle( StringBuilder sb, PhaseAirBattle p ) {
+		private static void GetBattleDetailPhaseAirBattle( StringBuilder sb, PhaseAirBattleBase p ) {
 
 			if ( p.IsStage1Available ) {
 				sb.Append( "Stage1: " ).AppendLine( Constants.GetAirSuperiority( p.AirSuperiority ) );
@@ -324,7 +367,9 @@ namespace ElectronicObserver.Data.Battle.Detail {
 					p.AircraftLostStage2Friend, p.AircraftTotalStage2Friend,
 					p.AircraftLostStage2Enemy, p.AircraftTotalStage2Enemy );
 			}
-			sb.AppendLine();
+
+			if ( p.IsStage1Available || p.IsStage2Available )
+				sb.AppendLine();
 		}
 
 
@@ -365,6 +410,33 @@ namespace ElectronicObserver.Data.Battle.Detail {
 					i + 1,
 					i + 1,
 					initialHPs[i], maxHPs[i] );
+			}
+
+		}
+
+		public static void OutputSupportData( StringBuilder sb, FleetData fleet ) {
+
+			for ( int i = 0; i < fleet.MembersInstance.Count; i++ ) {
+				var ship = fleet.MembersInstance[i];
+
+				if ( ship == null )
+					continue;
+
+				sb.AppendFormat( "#{0}: {1} {2} - 火力{3}, 雷装{4}, 対空{5}, 装甲{6}\r\n",
+					i + 1,
+					ship.MasterShip.ShipTypeName, ship.NameWithLevel,
+					ship.FirepowerBase, ship.TorpedoBase, ship.AABase, ship.ArmorBase );
+
+				sb.Append( "　" );
+				for ( int k = 0; k < ship.SlotInstance.Count; k++ ) {
+					var eq = ship.SlotInstance[k];
+					if ( eq != null ) {
+						if ( k > 0 )
+							sb.Append( ", " );
+						sb.Append( eq.ToString() );
+					}
+				}
+				sb.AppendLine();
 			}
 
 		}

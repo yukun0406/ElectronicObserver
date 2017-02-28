@@ -74,6 +74,14 @@ namespace ElectronicObserver.Data {
 			get { return (int)RawData.api_maxhp; }
 		}
 
+
+		/// <summary>
+		/// 速力
+		/// </summary>
+		public int Speed {
+			get { return RawData.api_soku() ? (int)RawData.api_soku : MasterShip.Speed; }
+		}
+
 		/// <summary>
 		/// 射程
 		/// </summary>
@@ -828,7 +836,7 @@ namespace ElectronicObserver.Data {
 		private double GetDayBattleEquipmentLevelBonus() {
 
 			double basepower = 0;
-			foreach ( var slot in SlotInstance ) {
+			foreach ( var slot in AllSlotInstance ) {
 				if ( slot == null )
 					continue;
 
@@ -862,7 +870,7 @@ namespace ElectronicObserver.Data {
 		private double GetAircraftEquipmentLevelBonus() {
 
 			double basepower = 0;
-			foreach ( var slot in SlotInstance ) {
+			foreach ( var slot in AllSlotInstance ) {
 				if ( slot == null )
 					continue;
 
@@ -880,7 +888,7 @@ namespace ElectronicObserver.Data {
 		/// </summary>
 		private double GetTorpedoEquipmentLevelBonus() {
 			double basepower = 0;
-			foreach ( var slot in SlotInstance ) {
+			foreach ( var slot in AllSlotInstance ) {
 				if ( slot == null )
 					continue;
 
@@ -900,7 +908,7 @@ namespace ElectronicObserver.Data {
 		/// </summary>
 		private double GetAntiSubmarineEquipmentLevelBonus() {
 			double basepower = 0;
-			foreach ( var slot in SlotInstance ) {
+			foreach ( var slot in AllSlotInstance ) {
 				if ( slot == null )
 					continue;
 
@@ -919,7 +927,7 @@ namespace ElectronicObserver.Data {
 		/// </summary>
 		private double GetNightBattleEquipmentLevelBonus() {
 			double basepower = 0;
-			foreach ( var slot in SlotInstance ) {
+			foreach ( var slot in AllSlotInstance ) {
 				if ( slot == null )
 					continue;
 
@@ -977,7 +985,7 @@ namespace ElectronicObserver.Data {
 		/// 残り弾薬量による威力補正
 		/// <returns></returns>
 		private double GetAmmoDamageRate() {
-			return Math.Min( AmmoRate * 2, 1 );
+			return Math.Min( Math.Floor( AmmoRate * 100 ) / 50.0, 1.0 );
 		}
 
 		/// <summary>
@@ -1037,7 +1045,7 @@ namespace ElectronicObserver.Data {
 				int single = 0;
 				int twin = 0;
 
-				foreach ( var slot in SlotMaster ) {
+				foreach ( var slot in AllSlotMaster ) {
 					if ( slot == -1 ) continue;
 
 					switch ( slot ) {
@@ -1073,7 +1081,7 @@ namespace ElectronicObserver.Data {
 		/// <param name="slotIndex">スロットのインデックス。 0 起点です。</param>
 		private int CalculateAirBattlePower( int slotIndex ) {
 			double basepower = 0;
-			var slots = SlotInstance;
+			var slots = AllSlotInstance;
 
 			var eq = SlotInstance[slotIndex];
 
@@ -1104,7 +1112,7 @@ namespace ElectronicObserver.Data {
 		/// </summary>
 		/// <param name="engagementForm">交戦形態。既定値は 1 (同航戦) です。</param>
 		private int CalculateShellingPower( int engagementForm = 1 ) {
-			if ( Calculator.GetDayAttackKind( SlotMaster.ToArray(), ShipID, -1, false ) != 0 )
+			if ( Calculator.GetDayAttackKind( AllSlotMaster.ToArray(), ShipID, -1, false ) != 0 )
 				return 0;		//砲撃以外は除外
 
 			double basepower = FirepowerTotal + GetDayBattleEquipmentLevelBonus() + GetCombinedFleetShellingDamageBonus() + 5;
@@ -1117,7 +1125,7 @@ namespace ElectronicObserver.Data {
 			basepower = Math.Floor( CapDamage( basepower, 150 ) );
 
 			//弾着
-			switch ( Calculator.GetDayAttackKind( SlotMaster.ToArray(), ShipID, -1 ) ) {
+			switch ( Calculator.GetDayAttackKind( AllSlotMaster.ToArray(), ShipID, -1 ) ) {
 				case 2:		//連撃
 				case 4:		//主砲/電探
 					basepower *= 1.2;
@@ -1141,7 +1149,7 @@ namespace ElectronicObserver.Data {
 		/// </summary>
 		/// <param name="engagementForm">交戦形態。既定値は 1 (同航戦) です。</param>
 		private int CalculateAircraftPower( int engagementForm = 1 ) {
-			if ( Calculator.GetDayAttackKind( SlotMaster.ToArray(), ShipID, -1, false ) != 7 )
+			if ( Calculator.GetDayAttackKind( AllSlotMaster.ToArray(), ShipID, -1, false ) != 7 )
 				return 0;		//空撃以外は除外
 
 			double basepower = Math.Floor( ( FirepowerTotal + TorpedoTotal + Math.Floor( BomberTotal * 1.3 ) + GetAircraftEquipmentLevelBonus() + GetCombinedFleetShellingDamageBonus() ) * 1.5 ) + 55;
@@ -1163,7 +1171,7 @@ namespace ElectronicObserver.Data {
 				return 0;
 
 			double eqpower = 0;
-			foreach ( var slot in SlotInstance ) {
+			foreach ( var slot in AllSlotInstance ) {
 				if ( slot == null )
 					continue;
 
@@ -1182,7 +1190,7 @@ namespace ElectronicObserver.Data {
 			}
 
 			double basepower = Math.Sqrt( ASWBase ) * 2 + eqpower * 1.5 + GetAntiSubmarineEquipmentLevelBonus();
-			if ( Calculator.GetDayAttackKind( SlotMaster.ToArray(), ShipID, 126, false ) == 7 ) {		//126=伊168; 対潜攻撃が空撃なら
+			if ( Calculator.GetDayAttackKind( AllSlotMaster.ToArray(), ShipID, 126, false ) == 7 ) {		//126=伊168; 対潜攻撃が空撃なら
 				basepower += 8;
 			} else {	//爆雷攻撃なら
 				basepower += 13;
@@ -1192,8 +1200,8 @@ namespace ElectronicObserver.Data {
 			basepower *= GetHPDamageBonus() * GetEngagementFormDamageRate( engagementForm );
 
 			//対潜シナジー
-			if ( SlotInstanceMaster.Where( s => s != null && ( s.CategoryType == 14 || s.CategoryType == 40 ) ).Any() &&		//ソナー or 大型ソナー
-				 SlotInstanceMaster.Where( s => s != null && s.CategoryType == 15 ).Any() )			//爆雷
+			if ( AllSlotInstanceMaster.Where( s => s != null && ( s.CategoryType == 14 || s.CategoryType == 40 ) ).Any() &&		//ソナー or 大型ソナー
+				 AllSlotInstanceMaster.Where( s => s != null && s.CategoryType == 15 ).Any() )			//爆雷
 				basepower *= 1.15;
 
 			//キャップ
@@ -1229,7 +1237,7 @@ namespace ElectronicObserver.Data {
 
 			basepower *= GetHPDamageBonus();
 
-			switch ( Calculator.GetNightAttackKind( SlotMaster.ToArray(), ShipID, -1 ) ) {
+			switch ( Calculator.GetNightAttackKind( AllSlotMaster.ToArray(), ShipID, -1 ) ) {
 				case 1:	//連撃
 					basepower *= 1.2;
 					break;

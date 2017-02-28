@@ -31,6 +31,22 @@ namespace ElectronicObserver.Window.Dialog {
 			}
 		}
 
+		private class FormationComboBoxData {
+			public readonly int Formation;
+			public FormationComboBoxData( int formation ) {
+				Formation = formation;
+			}
+
+			public override string ToString() {
+				return Constants.GetFormation( Formation );
+			}
+
+			public static implicit operator int( FormationComboBoxData data ) {
+				if ( data == null )
+					return -1;
+				return data.Formation;
+			}
+		}
 
 
 		public DialogAntiAirDefense() {
@@ -49,7 +65,8 @@ namespace ElectronicObserver.Window.Dialog {
 			Formation.SelectedIndex = 0;
 
 			UpdateAACutinKind( ShowAll.Checked );
-			
+			UpdateFormation();
+
 			this.Icon = ResourceManager.ImageToIcon( ResourceManager.Instance.Icons.Images[(int)ResourceManager.IconContent.FormAntiAirDefense] );
 		}
 
@@ -57,7 +74,7 @@ namespace ElectronicObserver.Window.Dialog {
 			ResourceManager.DestroyIcon( Icon );
 		}
 
-		
+
 		public void SetFleetID( int id ) {
 			FleetID.SelectedIndex = id - 1;
 		}
@@ -65,10 +82,9 @@ namespace ElectronicObserver.Window.Dialog {
 		private void Updated() {
 
 			ShipData[] ships = GetShips().ToArray();
-			int formation = Formation.SelectedIndex + 1;
+			int formation = Formation.SelectedItem as FormationComboBoxData;
 			int aaCutinKind = AACutinKind.SelectedItem as AACutinComboBoxData;
 			int enemyAircraftCount = (int)EnemySlotCount.Value;
-
 
 
 			// 加重対空値
@@ -78,16 +94,24 @@ namespace ElectronicObserver.Window.Dialog {
 			double adjustedFleetAA = Calculator.GetAdjustedFleetAAValue( ships, formation );
 
 			// 割合撃墜
-			double[] proportionalAAs = adjustedAAs.Select( val => Calculator.GetProportionalAirDefense( val ) ).ToArray();
+			double[] proportionalAAs = adjustedAAs.Select( ( val, i ) => Calculator.GetProportionalAirDefense( val, IsCombined ? ( i < 6 ? 1 : 2 ) : -1 ) ).ToArray();
 
 			// 固定撃墜
-			int[] fixedAAs = adjustedAAs.Select( val => Calculator.GetFixedAirDefense( val, adjustedFleetAA, aaCutinKind ) ).ToArray();
+			int[] fixedAAs = adjustedAAs.Select( ( val, i ) => Calculator.GetFixedAirDefense( val, adjustedFleetAA, aaCutinKind, IsCombined ? ( i < 6 ? 1 : 2 ) : -1 ) ).ToArray();
 
 
-			int[] shootDownBoth = adjustedAAs.Select( ( val, i ) => Calculator.GetShootDownCount( enemyAircraftCount, proportionalAAs[i], fixedAAs[i], aaCutinKind ) ).ToArray();
-			int[] shootDownProportional = adjustedAAs.Select( ( val, i ) => Calculator.GetShootDownCount( enemyAircraftCount, proportionalAAs[i], 0, aaCutinKind ) ).ToArray();
-			int[] shootDownFixed = adjustedAAs.Select( ( val, i ) => Calculator.GetShootDownCount( enemyAircraftCount, 0, fixedAAs[i], aaCutinKind ) ).ToArray();
-			int[] shootDownFailed = adjustedAAs.Select( ( val, i ) => Calculator.GetShootDownCount( enemyAircraftCount, 0, 0, aaCutinKind ) ).ToArray();
+
+			int[] shootDownBoth = adjustedAAs.Select( ( val, i ) => ships[i] == null ? 0 :
+				Calculator.GetShootDownCount( enemyAircraftCount, proportionalAAs[i], fixedAAs[i], aaCutinKind ) ).ToArray();
+
+			int[] shootDownProportional = adjustedAAs.Select( ( val, i ) => ships[i] == null ? 0 :
+				Calculator.GetShootDownCount( enemyAircraftCount, proportionalAAs[i], 0, aaCutinKind ) ).ToArray();
+
+			int[] shootDownFixed = adjustedAAs.Select( ( val, i ) => ships[i] == null ? 0 :
+				Calculator.GetShootDownCount( enemyAircraftCount, 0, fixedAAs[i], aaCutinKind ) ).ToArray();
+
+			int[] shootDownFailed = adjustedAAs.Select( ( val, i ) => ships[i] == null ? 0 :
+				Calculator.GetShootDownCount( enemyAircraftCount, 0, 0, aaCutinKind ) ).ToArray();
 
 
 
@@ -108,8 +132,8 @@ namespace ElectronicObserver.Window.Dialog {
 			AdjustedFleetAA.Text = adjustedFleetAA.ToString( "0.0" );
 			{
 				var allShootDown = shootDownBoth.Concat( shootDownProportional ).Concat( shootDownFixed ).Concat( shootDownFailed );
-				AnnihilationProbability.Text = ( allShootDown.Count( i => i >= enemyAircraftCount ) / Math.Max( allShootDown.Count(), 1.0 ) ).ToString( "p1" );
-			}	
+				AnnihilationProbability.Text = ( allShootDown.Count( i => i >= enemyAircraftCount ) / Math.Max( ships.Count( s => s != null ) * 4, 1.0 ) ).ToString( "p1" );
+			}
 		}
 
 
@@ -119,6 +143,9 @@ namespace ElectronicObserver.Window.Dialog {
 			else
 				return KCDatabase.Instance.Fleet[1].MembersWithoutEscaped.Concat( KCDatabase.Instance.Fleet[2].MembersWithoutEscaped );
 		}
+
+		private bool IsCombined { get { return FleetID.SelectedIndex == 4; } }
+
 
 		private void UpdateAACutinKind( bool showAll ) {
 
@@ -133,7 +160,7 @@ namespace ElectronicObserver.Window.Dialog {
 
 				list = GetShips()
 					.Where( s => s != null )
-					.Select( s => Calculator.GetAACutinKind( s.ShipID, s.SlotMaster.ToArray() ) )
+					.Select( s => Calculator.GetAACutinKind( s.ShipID, s.AllSlotMaster.ToArray() ) )
 					.Concat( Enumerable.Repeat( 0, 1 ) )
 					.Distinct()
 					.OrderBy( i => i )
@@ -144,6 +171,18 @@ namespace ElectronicObserver.Window.Dialog {
 			AACutinKind.Items.Clear();
 			AACutinKind.Items.AddRange( list );
 			AACutinKind.SelectedIndex = 0;
+		}
+
+		private void UpdateFormation() {
+			var items = ( IsCombined ? Enumerable.Range( 11, 4 ) : Enumerable.Range( 1, 5 ) )
+				.Select( i => new FormationComboBoxData( i ) ).ToArray();
+
+			int selected = Formation.SelectedItem as FormationComboBoxData;
+			int index = Array.FindIndex( items, item => item == selected );
+
+			Formation.Items.Clear();
+			Formation.Items.AddRange( items );
+			Formation.SelectedIndex = Math.Max( index, 0 );
 		}
 
 
@@ -170,6 +209,7 @@ namespace ElectronicObserver.Window.Dialog {
 		private void FleetID_SelectedIndexChanged( object sender, EventArgs e ) {
 			Updated();
 			UpdateAACutinKind( ShowAll.Checked );
+			UpdateFormation();
 		}
 
 		private void Formation_SelectedIndexChanged( object sender, EventArgs e ) {
@@ -188,6 +228,6 @@ namespace ElectronicObserver.Window.Dialog {
 			UpdateAACutinKind( ShowAll.Checked );
 		}
 
-		
+
 	}
 }
