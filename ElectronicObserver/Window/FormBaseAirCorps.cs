@@ -176,7 +176,16 @@ namespace ElectronicObserver.Window {
 
 					{
 						int airSuperiority = Calculator.GetAirSuperiority( corps );
-						AirSuperiority.Text = airSuperiority.ToString();
+						if ( Utility.Configuration.Config.FormFleet.ShowAirSuperiorityRange ) {
+							int airSuperiority_max = Calculator.GetAirSuperiority( corps, true );
+							if ( airSuperiority < airSuperiority_max )
+								AirSuperiority.Text = string.Format( "{0} ～ {1}", airSuperiority, airSuperiority_max );
+							else
+								AirSuperiority.Text = airSuperiority.ToString();
+						} else {
+							AirSuperiority.Text = airSuperiority.ToString();
+						}
+
 						ToolTipInfo.SetToolTip( AirSuperiority,
 							string.Format( "確保: {0}\r\n優勢: {1}\r\n均衡: {2}\r\n劣勢: {3}\r\n",
 							(int)( airSuperiority / 3.0 ),
@@ -258,7 +267,7 @@ namespace ElectronicObserver.Window {
 									break;
 							}
 
-							sb.AppendLine( eq.NameWithLevel );
+							sb.AppendFormat( "{0} (半径: {1})\r\n", eq.NameWithLevel, eq.MasterEquipment.AircraftDistance );
 							break;
 
 						case 2:		// 配置転換中
